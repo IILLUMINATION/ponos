@@ -1,4 +1,4 @@
-mod error;
+pub mod error;
 mod ffi_utils;
 mod font;
 mod objects;
