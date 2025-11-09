@@ -10,7 +10,7 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::SurfaceError;
 
 use crate::font::{FontId, FontSystem};
-use crate::objects::{ObjectId, ShaderId, UniformValue};
+use crate::objects::{ShaderId, UniformValue};
 use crate::renderer::Renderer;
 use crate::error::MoonWalkError;
 
