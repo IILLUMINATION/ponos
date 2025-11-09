@@ -14,6 +14,8 @@ use crate::objects::{ObjectId, ShaderId, UniformValue};
 use crate::renderer::Renderer;
 use crate::error::MoonWalkError;
 
+pub use objects::ObjectId;
+
 pub struct MoonWalk {
     renderer: Renderer<'static>,
     font_system: FontSystem,
