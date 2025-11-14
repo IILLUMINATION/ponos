@@ -144,7 +144,6 @@ impl<'a> Renderer<'a> {
             label: Some("Render Encoder"),
         });
 
-        // --- ФАЗА 1: ПОДГОТОВКА BIND GROUPS ---
         let mut simple_pass_bind_groups = Vec::new();
         if let Some(groups) = self.batch_groups.get(&RenderPass::Simple) {
             for group in groups {
@@ -193,7 +192,6 @@ impl<'a> Renderer<'a> {
             }
         }
 
-        // --- ФАЗА 2: РЕНДЕРИНГ ---
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -218,7 +216,7 @@ impl<'a> Renderer<'a> {
                         render_pass.set_pipeline(pipeline);
                         render_pass.set_bind_group(0, bind_group, &[]);
                         
-                        if group.storage_buffers.is_empty() { // Это прямоугольник
+                        if group.storage_buffers.is_empty() {
                             render_pass.set_vertex_buffer(0, group.vbo.slice(..));
                         }
                         

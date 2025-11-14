@@ -32,6 +32,43 @@ impl MoonWalk {
         })
     }
 
+    #[cfg(target_os = "android")]
+    pub fn new_android(handle: raw_window_handle::RawWindowHandle) -> Result<Self, error::MoonWalkError> {
+        use raw_window_handle::{DisplayHandle, WindowHandle};
+        
+        struct AndroidWindowWrapper {
+            window_handle: raw_window_handle::RawWindowHandle,
+            display_handle: raw_window_handle::RawDisplayHandle,
+        }
+        
+        unsafe impl HasWindowHandle for AndroidWindowWrapper {
+            fn window_handle(&self) -> Result<WindowHandle<'_>, raw_window_handle::HandleError> {
+                Ok(unsafe { WindowHandle::borrow_raw(self.window_handle) })
+            }
+        }
+        
+        unsafe impl HasDisplayHandle for AndroidWindowWrapper {
+            fn display_handle(&self) -> Result<DisplayHandle<'_>, raw_window_handle::HandleError> {
+                Ok(unsafe { DisplayHandle::borrow_raw(self.display_handle) })
+            }
+        }
+
+        let wrapper = Box::new(AndroidWindowWrapper {
+            window_handle: handle,
+            display_handle: raw_window_handle::RawDisplayHandle::Android(
+                raw_window_handle::AndroidDisplayHandle::empty()
+            ),
+        });
+        
+        let static_wrapper: &'static AndroidWindowWrapper = Box::leak(wrapper);
+        let renderer = pollster::block_on(Renderer::new(static_wrapper))?;
+        
+        Ok(Self {
+            renderer,
+            font_system: FontSystem::new(),
+        })
+    }
+
     pub fn set_viewport(&mut self, width: u32, height: u32) {
         self.renderer.set_viewport(width, height);
     }
@@ -180,6 +217,28 @@ pub mod ffi {
             Ok(state) => Box::into_raw(Box::new(state)),
             Err(e) => {
                 eprintln!("MoonWalk initialization failed: {}", e);
+                std::ptr::null_mut()
+            }
+        }
+    }
+
+    #[no_mangle]
+    #[cfg(target_os = "android")]
+    pub unsafe extern "C" fn moonwalk_init_android(
+        window_handle: *const raw_window_handle::RawWindowHandle,
+    ) -> *mut MoonWalk {
+        if window_handle.is_null() {
+            eprintln!("MoonWalk Android initialization failed: null handle provided");
+            return std::ptr::null_mut();
+        }
+        
+        let window_handle = *window_handle;
+        
+        
+        match MoonWalk::new_android(window_handle) {
+            Ok(state) => Box::into_raw(Box::new(state)),
+            Err(e) => {
+                eprintln!("MoonWalk Android initialization failed: {}", e);
                 std::ptr::null_mut()
             }
         }
