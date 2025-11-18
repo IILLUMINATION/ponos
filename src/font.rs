@@ -19,14 +19,40 @@ pub struct FontSystem {
     cosmic_font_system: cosmic_text::FontSystem,
     next_id: u64,
     fonts: HashMap<FontId, FontInfo>,
+
+    #[cfg(target_os = "android")]
+    asset_manager: ndk::asset::AssetManager,
 }
 
 impl FontSystem {
+    /*
+        Этот конструктор предназначен для платформ КРОМЕ
+        android, то есть Windows, Limuz, Mac Os и BSD систем.
+        Для IOS также будет свой конструктор, но позже.
+    */
+
+    #[cfg(not(target_os = "android"))]
     pub fn new() -> Self {
         Self {
             cosmic_font_system: cosmic_text::FontSystem::new(),
             next_id: 1,
             fonts: HashMap::new(),
+        }
+    }
+
+    /*
+        Этот конструктор предназначен ТОЛЬКО для платформы
+        android и никакой другой больше. Берёт AssetManager из
+        Android NDK.
+    */
+
+    #[cfg(target_os = "android")]
+    pub fn new(asset_manager: ndk::asset::AssetManager) -> Self {
+        Self {
+            cosmic_font_system: cosmic_text::FontSystem::new(),
+            next_id: 1,
+            fonts: HashMap::new(),
+            asset_manager,
         }
     }
     
@@ -35,9 +61,22 @@ impl FontSystem {
     }
 
     pub fn load_font(&mut self, path: &str, size: f32) -> Result<FontId, MoonWalkError> {
-        let font_data = std::fs::read(path)
-            .map_err(|e| MoonWalkError::FontLoading(e.to_string()))?;
-        
+        let font_data = {
+            #[cfg(target_os = "android")]
+            {
+                let mut asset = self.asset_manager.open(Path::new(path))
+                    .ok_or_else(|| MoonWalkError::FontLoading(format!("Asset not found: {}", path)))?;
+                
+                asset.buffer().map(|b| b.to_vec())
+                    .map_err(|e| MoonWalkError::FontLoading(e.to_string()))
+            }
+            
+            #[cfg(not(target_os = "android"))]
+            {
+                std::fs::read(path).map_err(|e| MoonWalkError::FontLoading(e.to_string()))
+            }
+        }?;
+
         self.cosmic_font_system.db_mut().load_font_data(font_data);
 
         let family_name = Path::new(path)
