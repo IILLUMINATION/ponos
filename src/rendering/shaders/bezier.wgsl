@@ -5,7 +5,6 @@ struct Uniforms {
     curve_color: vec4<f32>,
     point_count: u32,
 };
-
 @group(0) @binding(0) var<uniform> uni: Uniforms;
 @group(0) @binding(1) var<storage, read> points: array<vec2<f32>>;
 
@@ -38,21 +37,21 @@ fn bezier_point(p0: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>, p3: vec2<f32>, t: f
     let tt = t * t;
     let ttt = tt * t;
     
-    return uuu * p0 + 
-           3.0 * uu * t * p1 + 
-           3.0 * u * tt * p2 + 
+    return uuu * p0 +
+           3.0 * uu * t * p1 +
+           3.0 * u * tt * p2 +
            ttt * p3;
 }
 
 fn bezier_derivative(p0: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>, p3: vec2<f32>, t: f32) -> vec2<f32> {
     let u = 1.0 - t;
-    return 3.0 * u * u * (p1 - p0) + 
-           6.0 * u * t * (p2 - p1) + 
+    return 3.0 * u * u * (p1 - p0) +
+           6.0 * u * t * (p2 - p1) +
            3.0 * t * t * (p3 - p2);
 }
 
 fn bezier_second_derivative(p0: vec2<f32>, p1: vec2<f32>, p2: vec2<f32>, p3: vec2<f32>, t: f32) -> vec2<f32> {
-    return 6.0 * (1.0 - t) * (p2 - 2.0 * p1 + p0) + 
+    return 6.0 * (1.0 - t) * (p2 - 2.0 * p1 + p0) +
            6.0 * t * (p3 - 2.0 * p2 + p1);
 }
 
