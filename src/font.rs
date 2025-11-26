@@ -97,6 +97,21 @@ impl FontSystem {
         Ok(id)
     }
 
+    pub fn load_font_from_bytes(&mut self, data: &[u8], name: &str, size: f32) -> Result<FontId, MoonWalkError> {
+        self.cosmic_font_system.db_mut().load_font_data(data.to_vec());
+
+        let id = FontId(self.next_id);
+        self.next_id += 1;
+
+        let info = FontInfo {
+            family: name.to_string(),
+            size,
+        };
+
+        self.fonts.insert(id, info);
+        Ok(id)
+    }
+
     pub fn clear_font(&mut self, id: FontId) {
         self.fonts.remove(&id);
     }

@@ -114,6 +114,10 @@ impl MoonWalk {
         self.font_system.load_font(path, size)
     }
 
+    pub fn load_font_from_bytes(&mut self, data: &[u8], name: &str, size: f32) -> Result<FontId, MoonWalkError> {
+        self.font_system.load_font_from_bytes(data, name, size)
+    }
+
     pub fn clear_font(&mut self, font_id: FontId) {
         self.font_system.clear_font(font_id);
     }
