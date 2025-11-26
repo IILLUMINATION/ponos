@@ -79,8 +79,8 @@ impl<'a> Renderer<'a> {
         let default_bezier_shader = shader_store.create_default_bezier_shader()?;
 
         let object_store = ObjectStore::new(default_rect_shader, default_text_shader, default_bezier_shader); 
-        let glyph_cache = GlyphCache::new(&device);
-
+        let glyph_cache = GlyphCache::new(&device, &queue);
+        
         let projection = Mat4::orthographic_lh(0.0, 1.0, 1.0, 0.0, -1.0, 1.0);
         let projection_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Projection Buffer"),
@@ -127,6 +127,7 @@ impl<'a> Renderer<'a> {
         
         if self.object_store.is_dirty() {
             release_batch_groups(&mut self.batch_groups);
+            
             self.batch_groups = rebuild_batch_groups(
                 &self.device,
                 &self.object_store,
@@ -135,6 +136,8 @@ impl<'a> Renderer<'a> {
                 self.width,
                 self.height,
             );
+
+            self.glyph_cache.upload_pending(&self.queue);
             self.object_store.reset_dirty();
         }
         

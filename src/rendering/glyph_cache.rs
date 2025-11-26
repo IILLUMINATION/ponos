@@ -3,8 +3,8 @@ use swash::scale::image::{Content, Image as SwashImage};
 use std::collections::HashMap;
 
 const ATLAS_SIZE: u32 = 2048;
+const PADDING: u32 = 1;
 
-#[allow(dead_code)]
 pub struct GlyphCache {
     swash_cache: SwashCache,
     texture: wgpu::Texture,
@@ -13,10 +13,11 @@ pub struct GlyphCache {
     next_y: u32,
     row_height: u32,
     glyphs: HashMap<CacheKey, (SwashImage, (f32, f32, f32, f32))>,
+    pending_uploads: Vec<(CacheKey, u32, u32, SwashImage)>,
 }
 
 impl GlyphCache {
-    pub fn new(device: &wgpu::Device) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         let texture_size = wgpu::Extent3d {
             width: ATLAS_SIZE,
             height: ATLAS_SIZE,
@@ -33,7 +34,26 @@ impl GlyphCache {
             label: Some("Glyph Atlas Texture"),
             view_formats: &[],
         });
-        
+
+        let clear_data = vec![0u8; (ATLAS_SIZE * ATLAS_SIZE) as usize];
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+
+            &clear_data,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(ATLAS_SIZE),
+                rows_per_image: Some(ATLAS_SIZE),
+            },
+
+            texture_size,
+        );
+
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -85,55 +105,109 @@ impl GlyphCache {
             swash_cache: SwashCache::new(),
             texture,
             bind_group,
-            next_x: 1,
-            next_y: 1,
+            next_x: PADDING,
+            next_y: PADDING,
             row_height: 0,
             glyphs: HashMap::new(),
+            pending_uploads: Vec::new(),
         }
     }
 
     pub fn get_bind_group(&self) -> &wgpu::BindGroup {
         &self.bind_group
     }
-    
+
+    pub fn upload_pending(&mut self, queue: &wgpu::Queue) {
+        for (key, x, y, image) in self.pending_uploads.drain(..) {
+            let w = image.placement.width;
+            let h = image.placement.height;
+
+            if w == 0 || h == 0 {
+                continue;
+            }
+
+            queue.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &self.texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d { x, y, z: 0 },
+                    aspect: wgpu::TextureAspect::All,
+                },
+
+                &image.data,
+
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(w),
+                    rows_per_image: None,
+                },
+
+                wgpu::Extent3d {
+                    width: w,
+                    height: h,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            let uv_rect = (
+                x as f32 / ATLAS_SIZE as f32,
+                y as f32 / ATLAS_SIZE as f32,
+                w as f32 / ATLAS_SIZE as f32,
+                h as f32 / ATLAS_SIZE as f32,
+            );
+
+            self.glyphs.insert(key, (image, uv_rect));
+        }
+    }
+
     pub fn get_glyph(&mut self, key: CacheKey, font_system: &mut FontSystem) -> Option<(SwashImage, (f32, f32, f32, f32))> {
         if let Some((image, rect)) = self.glyphs.get(&key) {
             return Some((image.clone(), *rect));
         }
 
-        let image = self.swash_cache.get_image(font_system, key).as_ref().map(|i| (*i).clone())?;
+        let Some(image) = self.swash_cache.get_image(font_system, key) else {
+            return None;
+        };
+        let image = image.clone();
+        
         if image.content != Content::Mask {
             return None;
         }
 
-        self.place_glyph(key, image.clone()).map(|rect| (image, rect))
+        let rect = self.place_glyph(key, image.clone())?;
+        Some((image, rect))
     }
-    
+
     fn place_glyph(&mut self, key: CacheKey, image: SwashImage) -> Option<(f32, f32, f32, f32)> {
         let w = image.placement.width;
         let h = image.placement.height;
-        
-        if self.next_x + w + 1 > ATLAS_SIZE {
-            self.next_x = 1;
-            self.next_y += self.row_height + 1;
+
+        if self.next_x + w + PADDING > ATLAS_SIZE {
+            self.next_x = PADDING;
+            self.next_y += self.row_height + PADDING;
             self.row_height = 0;
         }
 
-        if self.next_y + h + 1 > ATLAS_SIZE {
+        if self.next_y + h + PADDING > ATLAS_SIZE {
+            eprintln!("Glyph atlas is full!");
             return None;
         }
-        
+
+        let x = self.next_x;
+        let y = self.next_y;
+
         let uv_rect = (
-            self.next_x as f32 / ATLAS_SIZE as f32,
-            self.next_y as f32 / ATLAS_SIZE as f32,
+            x as f32 / ATLAS_SIZE as f32,
+            y as f32 / ATLAS_SIZE as f32,
             w as f32 / ATLAS_SIZE as f32,
             h as f32 / ATLAS_SIZE as f32,
         );
-        
-        self.glyphs.insert(key, (image, uv_rect));
-        self.next_x += w + 1;
+
+        self.pending_uploads.push((key, x, y, image));
+
+        self.next_x += w + PADDING;
         self.row_height = self.row_height.max(h);
-        
+
         Some(uv_rect)
     }
 }

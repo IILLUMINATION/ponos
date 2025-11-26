@@ -203,7 +203,7 @@ fn append_text_vertices(
 
             let indices = [0, 2, 1, 0, 1, 3];
             for &i in &indices {
-                 vertices.push(TextVertex {
+                vertices.push(TextVertex {
                     position: [positions[i].x, positions[i].y, obj.common.z],
                     color: c,
                     tex_coords: uvs[i].to_array(),
@@ -279,4 +279,4 @@ fn create_bezier_batch(device: &wgpu::Device, obj: &Object, data: &BezierData, s
         storage_buffers,
         vbo,
         vertex_count: 3,}
-} 
+}
